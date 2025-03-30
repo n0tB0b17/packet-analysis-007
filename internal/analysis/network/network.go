@@ -52,7 +52,7 @@ func (na *NetworkAnalyzer) Analyze(packet gopacket.Packet) error {
 
 		if ipv4.Flags&layers.IPv4MoreFragments != 0 || ipv4.FragOffset > 0 {
 			na.stats.FragmentedPackets++
-			flowKey := fmt.Sprintf("%s-%s-%d", srcIP, destIP, ipv4.Id)
+			flowKey := fmt.Sprintf("%s-%s-%s-%d", srcIP, destIP, ipv4.Protocol.String(), ipv4.Id)
 			na.handleFragments(flowKey, packet)
 		}
 
@@ -71,7 +71,7 @@ func (na *NetworkAnalyzer) Analyze(packet gopacket.Packet) error {
 		if fragLayer := packet.Layer(layers.LayerTypeIPv6Fragment); fragLayer != nil {
 			na.stats.FragmentedPackets++
 			ipv6Fragment := fragLayer.(*layers.IPv6Fragment)
-			flowkey := fmt.Sprintf("%s-%s-%d", srcIP, destIP, ipv6Fragment.Identification)
+			flowkey := fmt.Sprintf("%s-%s-%s-%d", srcIP, destIP, ipv6.NextHeader.String(), ipv6Fragment.Identification)
 			na.handleFragments(flowkey, packet)
 		}
 
