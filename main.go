@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -13,6 +14,9 @@ import (
 
 func main() {
 	pathToPCAP := "/home/baiman/Desktop/active-directory-scanner/pcap/packet-analysis/pcap_src/300_tst_capture.pcap"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	reader := pcap.NewPCAPReader(pathToPCAP)
 	netAnalyzer := network.NewNetworkAnalyzer()
@@ -39,7 +43,20 @@ func main() {
 		go appAnalyzer.ProcessPackets(packetChan, &wg)
 	}
 
+	go func() {
+		select {
+		case err := <-errorChan:
+			fmt.Printf("unexpected error: %v", err)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	wg.Wait()
+
+	if ctx.Err() != nil {
+		fmt.Println("error while closing context")
+		return
+	}
 
 	fmt.Println("network layer analysis:")
 	for key, value := range netAnalyzer.GetResult() {
