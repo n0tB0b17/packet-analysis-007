@@ -5,41 +5,56 @@ import (
 	"sync"
 
 	"github.com/google/gopacket"
+	"github.com/n0tB0b17/tekcap/internal/analysis/application"
 	"github.com/n0tB0b17/tekcap/internal/analysis/network"
 	"github.com/n0tB0b17/tekcap/internal/analysis/transport"
 	"github.com/n0tB0b17/tekcap/internal/pcap"
 )
 
 func main() {
-	pathToPCAP := "/home/baiman/Desktop/active-directory-scanner/pcap/packet-analysis/pcap_src/12_packet.pcap"
+	pathToPCAP := "/home/baiman/Desktop/active-directory-scanner/pcap/packet-analysis/pcap_src/300_tst_capture.pcap"
 
 	reader := pcap.NewPCAPReader(pathToPCAP)
-	Netanalyzer := network.NewNetworkAnalyzer()
-	TranAnalyzer := transport.NewTransportAnalyzer()
+	netAnalyzer := network.NewNetworkAnalyzer()
+	tranAnalyzer := transport.NewTransportAnalyzer()
+	appAnalyzer := application.NewApplicationLayerAnalyzer()
 
 	packetChan := make(chan gopacket.Packet, 100)
 	var wg sync.WaitGroup
+	errorChan := make(chan error, 1)
 
 	wg.Add(1)
-	go reader.ReadPackets(packetChan, &wg)
+	go func() {
+		err := reader.ReadPackets(packetChan, &wg)
+		if err != nil {
+			errorChan <- err
+		}
+	}()
 
-	numOfWorkers := 6
+	numOfWorkers := 10
 	for i := 1; i < numOfWorkers; i++ {
-		wg.Add(2)
-		go Netanalyzer.ProcessPackets(packetChan, &wg)
-		go TranAnalyzer.ProcessPackets(packetChan, &wg)
+		wg.Add(3)
+		go netAnalyzer.ProcessPackets(packetChan, &wg)
+		go tranAnalyzer.ProcessPackets(packetChan, &wg)
+		go appAnalyzer.ProcessPackets(packetChan, &wg)
 	}
+
 	wg.Wait()
 
 	fmt.Println("network layer analysis:")
-	for key, value := range Netanalyzer.GetResult() {
+	for key, value := range netAnalyzer.GetResult() {
 		fmt.Printf("%s: %v \n", key, value)
 	}
 
 	fmt.Println("-----------------------------------------------------")
-
 	fmt.Println("transport layer analysis:")
-	for key, value := range TranAnalyzer.GetResult() {
+	for key, value := range tranAnalyzer.GetResult() {
+		fmt.Printf("%s: %v \n", key, value)
+	}
+
+	fmt.Println("-----------------------------------------------------")
+	fmt.Println("application layer analysis:")
+	for key, value := range appAnalyzer.GetResult() {
 		fmt.Printf("%s: %v \n", key, value)
 	}
 }

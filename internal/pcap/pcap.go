@@ -2,6 +2,7 @@ package pcap
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/google/gopacket"
@@ -18,20 +19,29 @@ func NewPCAPReader(filename string) *PCAPReader {
 	}
 }
 
-func (reader *PCAPReader) ReadPackets(packetChan chan<- gopacket.Packet, wg *sync.WaitGroup) {
+func (reader *PCAPReader) ReadPackets(packetChan chan<- gopacket.Packet, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	handler, err := pcap.OpenOffline(reader.filename)
 	if err != nil {
 		fmt.Printf("error while opening pcap file: %v \n", err)
 		close(packetChan)
-		return
+		return err
 	}
 	defer handler.Close()
 
-	packetSRC := gopacket.NewPacketSource(handler, handler.LinkType())
+	linkType := handler.LinkType()
+	fmt.Printf("Detected linktype: %d (%s)\n", linkType, linkType)
+
+	if linkType == 20 || strings.Contains(linkType.String(), "UnknownLinkType") {
+		close(packetChan)
+		return fmt.Errorf("unsuported link-type: %s with integer value of: %d \n", linkType, linkType)
+	}
+
+	packetSRC := gopacket.NewPacketSource(handler, linkType)
 	for packet := range packetSRC.Packets() {
 		packetChan <- packet
 	}
 	close(packetChan)
+	return nil
 }
